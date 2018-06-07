@@ -4,6 +4,8 @@ import HeaderMessage from './HeaderMessage';
 import moment from 'moment';
 import { connect } from 'react-redux';
 
+import { postMessage } from '../actions/messages';
+
 class NewMessage extends React.Component {
     constructor(props) {
         super(props);
@@ -11,18 +13,15 @@ class NewMessage extends React.Component {
     }
 
     submitMessage(text) {
-        let randomID = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
-        let object = {
-            id: randomID,
-            text: text,
-            thumbsUp: 0,
-            thumbsDown: 0,
-            children: [],
-            time: moment().format('MMM-DD-LT'),
-            location: this.props.location.coords
-        }
-        console.log(object)
-        AsyncStorage.setItem(randomID, JSON.stringify(object));
+        try {
+            let object = {
+                message: text,
+                time: moment().format('MMM-DD LT'),
+                exact_time: Date.now(),
+                location: this.props.location.coords
+            }
+            this.props.dispatch(postMessage(object))
+        } catch(err){}
     }
 
     render() {
@@ -35,10 +34,12 @@ class NewMessage extends React.Component {
                     <Text style={styles.information}>City Location will be revealed (other users will still see the city where you posted your message from)</Text>
                 </View>
                 <TextInput
+                autofocus={true}
                 multiline={true}
                 style={styles.textBox}
                 onChangeText={(text) => this.setState({text})}
                 value={this.state.text}
+                maxLength={250}
                 placeholder="Your Message Here"
                 placeholderTextColor="#52658F"
                 />

@@ -1,115 +1,219 @@
 import React from 'react';
+import { connect } from 'react-redux';
 import { StyleSheet, View, Text, TouchableOpacity, Image, TextInput, KeyboardAvoidingView, AsyncStorage } from 'react-native';
-import Geocode from 'react-geocode';
+// import Geocode from 'react-geocode';
+import moment from 'moment';
 
-export default class Main extends React.Component {
+import {getMessages, postReply} from '../actions/messages';
+
+class Main extends React.Component {
     constructor(props) {
         super(props)
         
         this.state = {
             text: null,
             messages: [],
-            currentMessageLocation: null
+            currentMessageLocation: null,
+            replyTo: null,
+            showReplies: null
         }
+    }
+
+    submitMessage(text) {
+        try {
+            let object = {
+                message_id: this.state.replyTo,
+                message: text,
+                time: moment().format('MMM-DD LT'),
+                exact_time: Date.now(),
+                location: this.props.location.coords
+            }
+            this.props.dispatch(postReply(object))
+            this.setState({
+                replyTo: null
+            })
+        } catch(err){}
     }
 
     componentWillMount() {
         const component = this;
         try {
-            return AsyncStorage.getAllKeys().then((result) => {
-                console.log(result)
-                AsyncStorage.multiGet(result, (err, stores) => {
-                    stores.map((result, i, store) => {
-                        let value = JSON.parse(store[i][1]);
-                        component.setState({
-                            messages: [...component.state.messages, value]
-                        })
-                    });
-                });
-            })
-        } catch (err) {
-            alert('error:', err)
-        }
+            component.props.dispatch(getMessages())
+        } catch (err) {}
     }
 
-    render() {
+    render() {        
         const component = this;
-        const getCity = (lat, long) => {
-            return Geocode.fromLatLng(lat, long)
-            .then((response) => {
-                const result = `${response.results[0].address_components[3].long_name}, ${response.results[0].address_components[4].short_name}`;
-                component.setState({
-                    currentMessageLocation: result
-                })
-                return result;
-            })         
-            .catch(err => console.log(err))
-        }
-        console.log(component.state)
-        const buildMessages = component.state.messages.map((item) => {
-            let buildReplies;
-            // getCity(item.)
-            if (item.children.length > 0) {
-                buildReplies = item.children.map((reply) =>{
+        try {            
+            const buildMessages = component.props.messages.map((item) => {
+                let buildReplies;
+
+                let replyTo = (
+                    <View style={styles.replyTextBox}>
+                        <TextInput
+                        multiline={true}
+                        style={styles.textBox}
+                        onChangeText={(text) => this.setState({text})}
+                        value={this.state.text}
+                        maxLength={250}                        
+                        placeholder="Your Message Here"
+                        placeholderTextColor="#52658F"
+                        />
+                    <TouchableOpacity onPress={() => this.submitMessage(this.state.text)}>
+                        <Text style={styles.submitButton}>Submit</Text>
+                    </TouchableOpacity>
+                    </View>
+                ) 
+
+                if (item.replies.length > 0) {
+                    buildReplies = item.replies.map((reply) =>{
+                        return (
+                        <View key={reply.id}>
+                            <View style={styles.replyBox}>
+                                <View style={styles.messageBoxHeader}>
+                                    <Text style={styles.name}>Anonymous</Text>
+                                    <Text style={styles.location}>{reply.location.latitude}, {reply.location.longitude}</Text>
+                                </View>
+                                <View>
+                                    <Text style={styles.date}>May 28, 4:34PM</Text>                                                    
+                                    <Text style={styles.message}>{reply.message}
+                                    </Text>
+                                </View>
+                                <View style={styles.options}>
+                                    <Text style={styles.optionText}>{reply.thumbs_up}</Text>
+                                    <TouchableOpacity style={styles.optionButton}>
+                                        <Image style={styles.image} source={require('../images/png/008-like.png')}/>
+                                    </TouchableOpacity>     
+                                    <Text style={styles.optionText}>{reply.thumbs_down}</Text>                                
+                                    <TouchableOpacity style={styles.optionButton}>
+                                        <Image style={styles.image} source={require('../images/png/007-dislike.png')}/>                                    
+                                    </TouchableOpacity>                      
+                                </View>
+                            </View>
+                        </View>
+                        )
+                    })
+                }
+                if (item.id === component.state.replyTo) {
                     return (
-                    <View>
-                        <View style={styles.replyBox}>
+                    <View ref={item.exact_time} key={item.id} style={styles.block}>
+                        <TouchableOpacity onPress={(event) => {
+                                    if (component.state.showReplies !== null) {
+                                        component.setState({showReplies: null})
+                                    } else {
+                                        component.setState({showReplies: item.id})
+                                    }
+                                }} style={styles.messageBox}>
                             <View style={styles.messageBoxHeader}>
                                 <Text style={styles.name}>Anonymous</Text>
-                                <Text style={styles.location}>Redmond, Washington</Text>
+                                <Text style={styles.location}>{item.location.latitude}, {item.location.longitude}</Text>
                             </View>
                             <View>
-                                <Text style={styles.date}>May 28, 4:34PM</Text>                                                    
-                                <Text style={styles.message}>{reply.text}
+                                <Text style={styles.date}>{item.time}</Text>                        
+                                <Text style={styles.message}>{item.message}
                                 </Text>
                             </View>
                             <View style={styles.options}>
-                                <Text>{reply.thumbsUp}</Text>
+                                <Text style={styles.replyCount}>Replies: {item.replies.length}</Text>
+                                <TouchableOpacity onPress={(event) => component.setState({replyTo: item.id})} style={styles.optionButton}>
+                                    <Image style={styles.image} source={require('../images/png/005-reply-back.png')}/>
+                                </TouchableOpacity>
+                                <Text style={styles.optionText}>{item.thumbs_up}</Text>
                                 <TouchableOpacity style={styles.optionButton}>
                                     <Image style={styles.image} source={require('../images/png/008-like.png')}/>
                                 </TouchableOpacity>     
-                                <Text>{reply.thumbsDown}</Text>                                
+                                <Text style={styles.optionText}>{item.thumbs_down}</Text>                        
                                 <TouchableOpacity style={styles.optionButton}>
                                     <Image style={styles.image} source={require('../images/png/007-dislike.png')}/>                                    
-                                </TouchableOpacity>                      
+                                </TouchableOpacity>                             
                             </View>
-                        </View>
+                        </TouchableOpacity>
+                        {replyTo}
+                        {buildReplies}
                     </View>
                     )
-                })
-            }
-            return (
-                <View key={item.id} style={styles.block}>
-                    <View style={styles.messageBox}>
-                        <View style={styles.messageBoxHeader}>
-                            <Text style={styles.name}>Anonymous</Text>
-                            <Text style={styles.location}>{item.location.latitude}{item.location.longitude}</Text>
-                        </View>
-                        <View>
-                            <Text style={styles.date}>{item.time}</Text>                        
-                            <Text style={styles.message}>{item.text}
-                            </Text>
-                        </View>
-                        <View style={styles.options}>
-                            <Text style={styles.optionText}>Replies: {item.children.length}</Text>
-                            <TouchableOpacity style={styles.optionButton}>
-                                <Image style={styles.image} source={require('../images/png/005-reply-back.png')}/>
+                } else {
+                    if (item.id === component.state.showReplies ) { 
+                        return (
+                            <View ref={item.exact_time} key={item.id} style={styles.block}>
+                                <TouchableOpacity onPress={(event) => {
+                                    if (component.state.showReplies !== null) {
+                                        component.setState({showReplies: null})
+                                    } else {
+                                        component.setState({showReplies: item.id})
+                                    }
+                                }} style={styles.messageBox}>
+                                    <View style={styles.messageBoxHeader}>
+                                        <Text style={styles.name}>Anonymous</Text>
+                                        <Text style={styles.location}>{item.location.latitude}, {item.location.longitude}</Text>
+                                    </View>
+                                    <View>
+                                        <Text style={styles.date}>{item.time}</Text>                        
+                                        <Text style={styles.message}>{item.message}
+                                        </Text>
+                                    </View>
+                                    <View style={styles.options}>
+                                        <Text style={styles.replyCount}>Replies: {item.replies.length}</Text>
+                                        <TouchableOpacity onPress={(event) => component.setState({replyTo: item.id, showReplies: item.id})} style={styles.optionButton}>
+                                            <Image style={styles.image} source={require('../images/png/005-reply-back.png')}/>
+                                        </TouchableOpacity>
+                                        <Text style={styles.optionText}>{item.thumbs_up}</Text>
+                                        <TouchableOpacity style={styles.optionButton}>
+                                            <Image style={styles.image} source={require('../images/png/008-like.png')}/>
+                                        </TouchableOpacity>     
+                                        <Text style={styles.optionText}>{item.thumbs_down}</Text>                        
+                                        <TouchableOpacity style={styles.optionButton}>
+                                            <Image style={styles.image} source={require('../images/png/007-dislike.png')}/>                                    
+                                        </TouchableOpacity>                             
+                                    </View>
+                                </TouchableOpacity>
+                                {buildReplies}
+                            </View>
+                        )
+                    } else {
+                        return (
+                            <View ref={item.exact_time} key={item.id} style={styles.block}>
+                            <TouchableOpacity onPress={(event) => {
+                                    if (component.state.showReplies !== null) {
+                                        component.setState({showReplies: null})
+                                    } else {
+                                        component.setState({showReplies: item.id})
+                                    }
+                                }} style={styles.messageBox}>
+                                <View style={styles.messageBoxHeader}>
+                                    <Text style={styles.name}>Anonymous</Text>
+                                    <Text style={styles.location}>{item.location.latitude}, {item.location.longitude}</Text>
+                                </View>
+                                <View>
+                                    <Text style={styles.date}>{item.time}</Text>                        
+                                    <Text style={styles.message}>{item.message}
+                                    </Text>
+                                </View>
+                                <View style={styles.options}>
+                                    <Text style={styles.replyCount}>Replies: {item.replies.length}</Text>
+                                    <TouchableOpacity onPress={(event) => component.setState({replyTo: item.id, showReplies: item.id})} style={styles.optionButton}>
+                                        <Image style={styles.image} source={require('../images/png/005-reply-back.png')}/>
+                                    </TouchableOpacity>
+                                    <Text style={styles.optionText}>{item.thumbs_up}</Text>
+                                    <TouchableOpacity style={styles.optionButton}>
+                                        <Image style={styles.image} source={require('../images/png/008-like.png')}/>
+                                    </TouchableOpacity>     
+                                    <Text style={styles.optionText}>{item.thumbs_down}</Text>                        
+                                    <TouchableOpacity style={styles.optionButton}>
+                                        <Image style={styles.image} source={require('../images/png/007-dislike.png')}/>                                    
+                                    </TouchableOpacity>                             
+                                </View>
                             </TouchableOpacity>
-                            <Text style={styles.optionText}>{item.thumbsUp}</Text>
-                            <TouchableOpacity style={styles.optionButton}>
-                                <Image style={styles.image} source={require('../images/png/008-like.png')}/>
-                            </TouchableOpacity>     
-                            <Text style={styles.optionText}>{item.thumbsDown}</Text>                        
-                            <TouchableOpacity style={styles.optionButton}>
-                                <Image style={styles.image} source={require('../images/png/007-dislike.png')}/>                                    
-                            </TouchableOpacity>                             
                         </View>
-                    </View>
-                    {buildReplies}
-                </View>
-            )
-        })
+                        )
 
+                    }
+
+                }
+        })
+        .sort((a,b) => {
+            return b.ref - a.ref
+        })
         return (
             <KeyboardAvoidingView
             style={styles.main}
@@ -117,8 +221,22 @@ export default class Main extends React.Component {
             {buildMessages}
             </KeyboardAvoidingView>
         )
+    } catch(err) {
+        return (
+            <Text>
+                No messages to display (yet)
+            </Text>
+        )
+    }
     }
 }
+
+const mapStateToProps = state => ({
+    location: state.mainReducer.location,
+    messages: state.messagesReducer.messages
+})
+
+export default (connect(mapStateToProps)(Main))
 
 const $white = '#F7F5E6';
 const $black = '#222'
@@ -163,11 +281,12 @@ const styles = {
     message: {
         paddingTop: 5,
         paddingBottom: 5,
-        color: $white                
+        color: $white,
+        fontSize: 16            
     },
     image: {
-        width: 20,
-        height: 20,
+        width: 25,
+        height: 25,
         tintColor: $colorThree,
     },
     replyTextBox: {
@@ -190,7 +309,7 @@ const styles = {
     },
     submitButton: {
         backgroundColor: $colorOne,
-        fontSize: 12,
+        fontSize: 16,
         borderRadius: 5,
         borderColor: $colorThree,
         borderWidth: 1,
@@ -211,6 +330,12 @@ const styles = {
         flex: 1,
         flexDirection: 'row',
         alignSelf: 'flex-end',
+    },
+    replyCount: {
+        paddingRight: 20,
+        color: $colorFour,
+        fontSize: 18,
+        marginTop: 5
     },
     optionText: {
         color: $colorFour,

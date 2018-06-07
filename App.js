@@ -25,7 +25,8 @@ class App extends React.Component {
 
   //https://www.tutorialspoint.com/react_native/react_native_geolocation.htm
 
-  render() {
+
+  render() {    
     return (
       <Provider store={store}>
           <Router/>
